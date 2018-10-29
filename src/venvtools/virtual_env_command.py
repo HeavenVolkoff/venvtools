@@ -46,7 +46,7 @@ class VirtualEnvCommand(Command):
     def initialize_options(self):
         # All options must be initialized as None due to ConfigParser
         self.path = ".venv"
-        self.extras = None
+        self.extras = ""
         self.get_pip = "https://bootstrap.pypa.io/get-pip.py"
         self.env_name = PROJECT_CONF["metadata"]["name"]
         self.system_site_packages = False
