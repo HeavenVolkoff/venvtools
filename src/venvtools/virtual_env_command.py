@@ -1,10 +1,12 @@
 import re
 import shutil
+import typing as T
 from os import path
 from sys import argv
 from distutils.log import INFO, WARN, _global_log
 
 from setuptools import Command
+from requirementslib import Requirement
 
 from .extended_env_builder import ExtendedEnvBuilder
 
@@ -36,6 +38,14 @@ class VirtualEnvCommand(Command):
         ("rm", None, "Remove virtual environment."),
     ]
 
+    def _get_req(self) -> T.List[Requirement]:
+        requirements = []
+        requirements.extend(self.distribution.install_requires)
+        for extra in self.extras.split(","):
+            requirements.extend(self.distribution.extras_require[extra])
+
+        return [Requirement.from_line(requirement) for requirement in requirements]
+
     # noinspection PyAttributeOutsideInit
     def initialize_options(self):
         # All options must be initialized as None due to ConfigParser
@@ -60,13 +70,22 @@ class VirtualEnvCommand(Command):
             def announce(self, msg):
                 this.announce(msg, INFO)
 
+        self.extras = re.sub(r"\n+", ",", self.extras.strip())
+        self.reqs = self._get_req()
         self.env_builder = SpecializedEnvBuilder(
             self.distribution.metadata.name,
             self.env_name,
             PROJECT_PATH,
+            rm_main=not bool(
+                [
+                    req
+                    for req in self.reqs
+                    if req.name == self.distribution.metadata.name
+                ]
+            ),
             get_pip=self.get_pip,
             verbose=bool(_global_log.threshold <= INFO),
-            project_extras=re.sub(r"\n+", ",", self.extras.strip()),
+            project_extras=self.extras,
             system_site_packages=bool(self.system_site_packages),
         )
 
@@ -85,8 +104,8 @@ class VirtualEnvCommand(Command):
             PROJECT_PATH, self.get_finalized_command("egg_info").egg_info
         )
 
-        self.env_builder.create(self.path)
-
         # Remove egg-info to allow package dependencies to be recalculated
         if path.isdir(egg_info_path):
             shutil.rmtree(egg_info_path)
+
+        self.env_builder.create(self.path)

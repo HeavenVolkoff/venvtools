@@ -12,6 +12,7 @@ class ExtendedEnvBuilder(EnvBuilder):
         env_name,
         project_path,
         *args,
+        rm_main: bool = True,
         verbose: bool = True,
         get_pip: T.Union[bool, str],
         project_extras: str = "",
@@ -27,6 +28,7 @@ class ExtendedEnvBuilder(EnvBuilder):
         )
 
         self.name = name
+        self.rm_main = rm_main
         self.get_pip = get_pip
         self.verbose = verbose
         self.project_path = project_path
@@ -134,13 +136,14 @@ class ExtendedEnvBuilder(EnvBuilder):
             message="installation of package dependencies",
         )
 
-        self.run_script(
-            context,
-            "pip",
-            "uninstall",
-            "--yes",
-            *(() if self.verbose else ("-q",)),
-            self.name,
-            cwd=self.project_path,
-            message="removal of main package",
-        )
+        if self.rm_main:
+            self.run_script(
+                context,
+                "pip",
+                "uninstall",
+                "--yes",
+                *(() if self.verbose else ("-q",)),
+                self.name,
+                cwd=self.project_path,
+                message="removal of main package",
+            )
