@@ -41,8 +41,10 @@ class VirtualEnvCommand(Command):
     def _get_req(self) -> T.List[Requirement]:
         requirements = []
         requirements.extend(self.distribution.install_requires)
-        for extra in self.extras.split(","):
-            requirements.extend(self.distribution.extras_require[extra])
+
+        if self.extras:
+            for extra in self.extras.split(","):
+                requirements.extend(self.distribution.extras_require[extra])
 
         return [Requirement.from_line(requirement) for requirement in requirements]
 
