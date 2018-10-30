@@ -2,10 +2,9 @@ import re
 import shutil
 from os import path
 from sys import argv
-from distutils.log import INFO, _global_log
+from distutils.log import INFO, WARN, _global_log
 
 from setuptools import Command
-from setuptools.config import read_configuration
 
 from .extended_env_builder import ExtendedEnvBuilder
 
@@ -17,18 +16,12 @@ PROJECT_PATH = path.dirname(argv[0])
 if not path.isfile(path.join(PROJECT_PATH, "setup.py")):
     raise FileNotFoundError(f"No setup.py found at project: {PROJECT_PATH}")
 
-PROJECT_CONF = read_configuration(path.join(PROJECT_PATH, "setup.cfg"))
-
 
 class VirtualEnvCommand(Command):
     description = "Build development virtual environment"
     user_options = [
         # The format is (long option, short option, description).
-        (
-            "env-name=",
-            "n",
-            "Virtual environment name. (DEFAULT: Current directory name)",
-        ),
+        ("env-name=", "n", "Virtual environment name. (DEFAULT: Project name)"),
         (
             "get-pip=",
             None,
@@ -40,15 +33,17 @@ class VirtualEnvCommand(Command):
             None,
             "Make the system (global) site-packages dir available to the created environment.",
         ),
+        ("rm", None, "Remove virtual environment."),
     ]
 
     # noinspection PyAttributeOutsideInit
     def initialize_options(self):
         # All options must be initialized as None due to ConfigParser
+        self.rm = False
         self.path = ".venv"
         self.extras = ""
         self.get_pip = "https://bootstrap.pypa.io/get-pip.py"
-        self.env_name = PROJECT_CONF["metadata"]["name"]
+        self.env_name = self.distribution.metadata.name
         self.system_site_packages = False
 
     # noinspection PyAttributeOutsideInit
@@ -66,22 +61,32 @@ class VirtualEnvCommand(Command):
                 this.announce(msg, INFO)
 
         self.env_builder = SpecializedEnvBuilder(
+            self.distribution.metadata.name,
             self.env_name,
+            PROJECT_PATH,
             get_pip=self.get_pip,
             verbose=bool(_global_log.threshold <= INFO),
-            project_path=PROJECT_PATH,
             project_extras=re.sub(r"\n+", ",", self.extras.strip()),
             system_site_packages=bool(self.system_site_packages),
         )
 
     def run(self):
-        self.announce("Creating virtual env", INFO)
+        if self.rm:
+            if path.isdir(self.path):
+                self.announce(f"Removing virtual env: {self.path}", INFO)
+                shutil.rmtree(self.path)
+            else:
+                self.announce(f"There is no virtual env to remove", WARN)
+            return
 
-        egg_info = path.join(
-            PROJECT_PATH, f"{PROJECT_CONF['metadata']['name']}.egg-info"
+        self.announce(f"Creating virtual env: {self.path}", INFO)
+
+        egg_info_path = path.join(
+            PROJECT_PATH, self.get_finalized_command("egg_info").egg_info
         )
-        # Remove egg-info to allow package dependencies to be recalculated
-        if path.isdir(egg_info):
-            shutil.rmtree(egg_info)
 
         self.env_builder.create(self.path)
+
+        # Remove egg-info to allow package dependencies to be recalculated
+        if path.isdir(egg_info_path):
+            shutil.rmtree(egg_info_path)

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 class ExtendedEnvBuilder(EnvBuilder):
     def __init__(
         self,
+        name,
         env_name,
         project_path,
         *args,
@@ -25,6 +26,7 @@ class ExtendedEnvBuilder(EnvBuilder):
             **kwargs,
         )
 
+        self.name = name
         self.get_pip = get_pip
         self.verbose = verbose
         self.project_path = project_path
@@ -92,7 +94,7 @@ class ExtendedEnvBuilder(EnvBuilder):
             else:
                 proc_kwargs["args"].extend(["-m", name, *args])
 
-            self.announce(f"Installing {message or name}")
+            self.announce(f"Executing {message or name}")
 
             proc = stack.enter_context(Popen(**proc_kwargs))
             proc.communicate(input=data, timeout=None)
@@ -118,7 +120,7 @@ class ExtendedEnvBuilder(EnvBuilder):
             self.run_script(context, "pip", "-qqq", "check")
         except RuntimeError:
             self.run_script(
-                context, "pip", *(() if self.verbose else ("-q",)), url=self.get_pip
+                context, "get-pip", *(() if self.verbose else ("-q",)), url=self.get_pip
             )
 
         self.run_script(
@@ -129,5 +131,16 @@ class ExtendedEnvBuilder(EnvBuilder):
             "-e",
             f".[{self.project_extras}]" if self.project_extras else ".",
             cwd=self.project_path,
-            message="package dependencies",
+            message="installation of package dependencies",
+        )
+
+        self.run_script(
+            context,
+            "pip",
+            "uninstall",
+            "--yes",
+            *(() if self.verbose else ("-q",)),
+            self.name,
+            cwd=self.project_path,
+            message="removal of main package",
         )
