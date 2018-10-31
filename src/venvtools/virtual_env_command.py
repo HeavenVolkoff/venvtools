@@ -13,7 +13,7 @@ from .extended_env_builder import ExtendedEnvBuilder
 if path.basename(argv[0]) != "setup.py":
     raise EnvironmentError("Command entry point must be setup.py")
 
-PROJECT_PATH = path.dirname(argv[0])
+PROJECT_PATH = path.dirname(path.abspath(argv[0]))
 
 if not path.isfile(path.join(PROJECT_PATH, "setup.py")):
     raise FileNotFoundError(f"No setup.py found at project: {PROJECT_PATH}")
@@ -88,6 +88,8 @@ class VirtualEnvCommand(Command):
             get_pip=self.get_pip,
             verbose=bool(_global_log.threshold <= INFO),
             project_extras=self.extras,
+            setup_requires=self.distribution.setup_requires,
+            dependency_links=self.distribution.dependency_links,
             system_site_packages=bool(self.system_site_packages),
         )
 

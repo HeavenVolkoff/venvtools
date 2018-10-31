@@ -16,6 +16,8 @@ class ExtendedEnvBuilder(EnvBuilder):
         verbose: bool = True,
         get_pip: T.Union[bool, str],
         project_extras: str = "",
+        setup_requires: T.List[str] = None,
+        dependency_links: T.List[str] = None,
         **kwargs,
     ):
         super().__init__(
@@ -33,6 +35,8 @@ class ExtendedEnvBuilder(EnvBuilder):
         self.verbose = verbose
         self.project_path = project_path
         self.project_extras = project_extras
+        self.setup_requires = setup_requires
+        self.dependency_links = dependency_links
 
     @abstractmethod
     def announce(self, msg):
@@ -125,12 +129,33 @@ class ExtendedEnvBuilder(EnvBuilder):
                 context, "get-pip", *(() if self.verbose else ("-q",)), url=self.get_pip
             )
 
+        if self.setup_requires:
+            self.run_script(
+                context,
+                "pip",
+                "install",
+                *(() if self.verbose else ("-q",)),
+                *self.setup_requires,
+                cwd=self.project_path,
+                message="installation of setup requires",
+            )
+
+        if self.dependency_links:
+            self.run_script(
+                context,
+                "pip",
+                "install",
+                *(() if self.verbose else ("-q",)),
+                *self.dependency_links,
+                cwd=self.project_path,
+                message="installation of package dependencies (links)",
+            )
+
         self.run_script(
             context,
             "pip",
             "install",
             *(() if self.verbose else ("-q",)),
-            "-e",
             f".[{self.project_extras}]" if self.project_extras else ".",
             cwd=self.project_path,
             message="installation of package dependencies",
