@@ -36,6 +36,7 @@ class VirtualEnvCommand(Command):
             "Make the system (global) site-packages dir available to the created environment.",
         ),
         ("rm", None, "Remove virtual environment."),
+        ("location", "l", "Retrieve virtual environment location."),
     ]
 
     def _get_req(self) -> T.List[Requirement]:
@@ -55,6 +56,7 @@ class VirtualEnvCommand(Command):
         self.path = ".venv"
         self.extras = ""
         self.get_pip = "https://bootstrap.pypa.io/get-pip.py"
+        self.location = False
         self.env_name = self.distribution.metadata.name
         self.system_site_packages = False
 
@@ -100,6 +102,14 @@ class VirtualEnvCommand(Command):
                 shutil.rmtree(self.path)
             else:
                 self.announce(f"There is no virtual env to remove", WARN)
+            return
+
+        if self.location:
+            # TODO: Check if python is working
+            if path.isdir(self.path):
+                print(self.path)
+            else:
+                raise EnvironmentError("There is no virtual environment")
             return
 
         self.announce(f"Creating virtual env: {self.path}", INFO)
