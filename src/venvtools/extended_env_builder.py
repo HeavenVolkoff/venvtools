@@ -1,6 +1,6 @@
+# Internal
 import typing as T
 from os import path
-from abc import abstractmethod
 from venv import EnvBuilder
 from types import SimpleNamespace
 
@@ -15,30 +15,29 @@ class ExtendedEnvBuilder(EnvBuilder):
         rm_main: bool = True,
         verbose: bool = True,
         get_pip: T.Union[bool, str],
+        editable: bool,
         project_extras: str = "",
         setup_requires: T.List[str] = None,
-        dependency_links: T.List[str] = None,
         **kwargs,
     ):
         super().__init__(
             *args,
             clear=False,
-            prompt=f"[venv: {env_name}]\n",
+            prompt="[venv: {}]\n".format(env_name),
             symlinks=True,
             with_pip=False,
             **kwargs,
         )
 
         self.name = name
-        self.rm_main = rm_main
+        self.rm_main = rm_main or not editable
         self.get_pip = get_pip
         self.verbose = verbose
+        self.editable = editable
         self.project_path = project_path
         self.project_extras = project_extras
         self.setup_requires = setup_requires
-        self.dependency_links = dependency_links
 
-    @abstractmethod
     def announce(self, msg):
         from sys import stderr
 
@@ -67,17 +66,14 @@ class ExtendedEnvBuilder(EnvBuilder):
 
         with ExitStack() as stack:
             data = None
-            proc_kwargs = {
-                "cwd": cwd or context.bin_path,
-                "args": [context.env_exe, "-q"],
-            }
+            proc_kwargs = {"cwd": cwd or context.bin_path, "args": [context.env_exe, "-q"]}
             if url:
                 if path.isfile(url):
                     proc_kwargs["args"].extend([url, *args])
                 else:
                     from urllib.request import urlopen
 
-                    self.announce(f"Downloading {url}")
+                    self.announce("Downloading {}".format(url))
 
                     data = b""
                     with urlopen(url) as resp:
@@ -100,12 +96,14 @@ class ExtendedEnvBuilder(EnvBuilder):
             else:
                 proc_kwargs["args"].extend(["-m", name, *args])
 
-            self.announce(f"Executing {message or name}")
+            self.announce("Executing {}".format(message or name))
 
             proc = stack.enter_context(Popen(**proc_kwargs))
             proc.communicate(input=data, timeout=None)
             if proc.poll() != 0:
-                raise RuntimeError(f"Failed to execute {url or name}")
+                raise RuntimeError(
+                    "Failed to execute {} with arguments {}".format(url or name, args)
+                )
 
         self.announce("Done")
 
@@ -129,34 +127,26 @@ class ExtendedEnvBuilder(EnvBuilder):
                 context, "get-pip", *(() if self.verbose else ("-q",)), url=self.get_pip
             )
 
+        pip_install = ["pip", "install", "--no-cache", "-U"]
+        if not self.verbose:
+            pip_install.extend(("--progress-bar", "off", "-q"))
+
         if self.setup_requires:
             self.run_script(
                 context,
-                "pip",
-                "install",
-                *(() if self.verbose else ("-q",)),
+                *pip_install,
                 *self.setup_requires,
                 cwd=self.project_path,
                 message="installation of setup requires",
             )
 
-        if self.dependency_links:
-            self.run_script(
-                context,
-                "pip",
-                "install",
-                *(() if self.verbose else ("-q",)),
-                *self.dependency_links,
-                cwd=self.project_path,
-                message="installation of package dependencies (links)",
-            )
+        if self.editable:
+            pip_install.extend(("-e",))
 
         self.run_script(
             context,
-            "pip",
-            "install",
-            *(() if self.verbose else ("-q",)),
-            f".[{self.project_extras}]" if self.project_extras else ".",
+            *pip_install,
+            ".[{}]".format(self.project_extras) if self.project_extras else ".",
             cwd=self.project_path,
             message="installation of package dependencies",
         )

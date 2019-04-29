@@ -1,13 +1,16 @@
+# Internal
 import re
 import shutil
 import typing as T
 from os import path
 from sys import argv
-from distutils.log import INFO, WARN, _global_log
+from distutils.log import INFO, WARN, DEBUG, _global_log
 
+# External
 from setuptools import Command
-from requirementslib import Requirement
+from pkg_resources import parse_requirements
 
+# Project
 from .extended_env_builder import ExtendedEnvBuilder
 
 if path.basename(argv[0]) != "setup.py":
@@ -36,10 +39,11 @@ class VirtualEnvCommand(Command):
             "Make the system (global) site-packages dir available to the created environment.",
         ),
         ("rm", None, "Remove virtual environment."),
+        ("editable", None, "Install package to venv as editable."),
         ("location", "l", "Retrieve virtual environment location."),
     ]
 
-    def _get_req(self) -> T.List[Requirement]:
+    def _get_req(self):
         requirements = []
         requirements.extend(self.distribution.install_requires)
 
@@ -47,16 +51,17 @@ class VirtualEnvCommand(Command):
             for extra in self.extras.split(","):
                 requirements.extend(self.distribution.extras_require[extra])
 
-        return [Requirement.from_line(requirement) for requirement in requirements]
+        return tuple(parse_requirements(requirements))
 
     # noinspection PyAttributeOutsideInit
     def initialize_options(self):
-        # All options must be initialized as None due to ConfigParser
+        # All options are initialized as None due to ConfigParser
         self.rm = False
         self.path = ".venv"
         self.extras = ""
         self.get_pip = "https://bootstrap.pypa.io/get-pip.py"
         self.location = False
+        self.editable = False
         self.env_name = self.distribution.metadata.name
         self.system_site_packages = False
 
@@ -68,32 +73,10 @@ class VirtualEnvCommand(Command):
         if not self.get_pip:
             raise TypeError("Invalid get_pip.py url")
 
-        this = self
+        if self.distribution.dependency_links:
+            raise RuntimeError("Dependency links are not supported anymore")
 
-        class SpecializedEnvBuilder(ExtendedEnvBuilder):
-            def announce(self, msg):
-                this.announce(msg, INFO)
-
-        self.extras = re.sub(r"\n+", ",", self.extras.strip())
-        self.reqs = self._get_req()
-        self.env_builder = SpecializedEnvBuilder(
-            self.distribution.metadata.name,
-            self.env_name,
-            PROJECT_PATH,
-            rm_main=not bool(
-                [
-                    req
-                    for req in self.reqs
-                    if req.name == self.distribution.metadata.name
-                ]
-            ),
-            get_pip=self.get_pip,
-            verbose=bool(_global_log.threshold <= INFO),
-            project_extras=self.extras,
-            setup_requires=self.distribution.setup_requires,
-            dependency_links=self.distribution.dependency_links,
-            system_site_packages=bool(self.system_site_packages),
-        )
+        self.extras = re.sub(r"\s*\n+\s*", ",", self.extras.strip())
 
     def run(self):
         if self.rm:
@@ -114,12 +97,31 @@ class VirtualEnvCommand(Command):
 
         self.announce(f"Creating virtual env: {self.path}", INFO)
 
-        egg_info_path = path.join(
-            PROJECT_PATH, self.get_finalized_command("egg_info").egg_info
-        )
+        egg_info_path = path.join(PROJECT_PATH, self.get_finalized_command("egg_info").egg_info)
 
         # Remove egg-info to allow package dependencies to be recalculated
         if path.isdir(egg_info_path):
             shutil.rmtree(egg_info_path)
 
-        self.env_builder.create(self.path)
+        this = self
+
+        class SpecializedEnvBuilder(ExtendedEnvBuilder):
+            def announce(self, msg):
+                this.announce(msg, INFO)
+
+        SpecializedEnvBuilder(
+            self.distribution.metadata.name,
+            self.env_name,
+            PROJECT_PATH,
+            rm_main=not (
+                bool(
+                    [req for req in self._get_req() if req.name == self.distribution.metadata.name]
+                )
+            ),
+            get_pip=self.get_pip,
+            editable=self.editable,
+            verbose=bool(_global_log.threshold <= DEBUG),
+            project_extras=self.extras,
+            setup_requires=self.distribution.setup_requires,
+            system_site_packages=bool(self.system_site_packages),
+        ).create(self.path)
