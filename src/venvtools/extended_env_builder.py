@@ -124,7 +124,14 @@ class ExtendedEnvBuilder(EnvBuilder):
             self.run_script(context, "pip", "-qqq", "check")
         except RuntimeError:
             self.run_script(
-                context, "get-pip", *(() if self.verbose else ("-q",)), url=self.get_pip
+                context,
+                "get-pip",
+                "--no-user",
+                "-UI",
+                "--prefix",
+                context.env_dir,
+                *(() if self.verbose else ("-q",)),
+                url=self.get_pip,
             )
 
         pip_install = ["pip", "install", "--no-cache", "-U"]

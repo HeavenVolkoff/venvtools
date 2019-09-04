@@ -7,7 +7,7 @@
 import sys
 
 if sys.version_info <= (3, 3):
-    raise RuntimeError("Only Python >= 3.4 suported")
+    raise RuntimeError("Only Python >= 3.4 supported")
 
 from os import path, chdir, scandir
 from shlex import quote
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     SETUP_CONFIG = "setup.cfg"
 
     if not path.isfile(SETUP_CONFIG):
-        raise RuntimeError("Unsupported package strcuture, a setup.cfg file is required")
+        raise RuntimeError("Unsupported package structure, a setup.cfg file is required")
 
     config = read_configuration(SETUP_CONFIG)
     options = config.get("options", {})
