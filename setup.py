@@ -35,7 +35,7 @@ def has_requirement(req):
 
 if __name__ == "__main__":
     # Allow setup.py to run from another directory
-    chdir(path.dirname(__file__))
+    chdir(path.dirname(__file__) or ".")
 
     SETUP_CONFIG = "setup.cfg"
 

@@ -126,6 +126,7 @@ class ExtendedEnvBuilder(EnvBuilder):
             self.run_script(
                 context,
                 "get-pip",
+                "--no-cache",
                 "--no-user",
                 "-UI",
                 "--prefix",
@@ -134,7 +135,15 @@ class ExtendedEnvBuilder(EnvBuilder):
                 url=self.get_pip,
             )
 
-        pip_install = ["pip", "install", "--no-cache", "-U"]
+        pip_install = [
+            "pip",
+            "install",
+            "--no-cache",
+            "--no-user",
+            "-UI",
+            "--prefix",
+            context.env_dir,
+        ]
         if not self.verbose:
             pip_install.extend(("--progress-bar", "off", "-q"))
 
