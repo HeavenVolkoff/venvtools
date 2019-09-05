@@ -8,7 +8,7 @@ from distutils.log import INFO, WARN, DEBUG, _global_log
 
 # External
 from setuptools import Command
-from pkg_resources import parse_requirements
+from pkg_resources import Requirement, parse_requirements
 
 # Project
 from .extended_env_builder import ExtendedEnvBuilder
@@ -43,8 +43,8 @@ class VirtualEnvCommand(Command):
         ("location", "l", "Retrieve virtual environment location."),
     ]
 
-    def _get_req(self):
-        requirements = []
+    def _get_req(self) -> T.Tuple[Requirement, ...]:
+        requirements: T.List[str] = []
         requirements.extend(self.distribution.install_requires)
 
         if self.extras:
@@ -54,19 +54,19 @@ class VirtualEnvCommand(Command):
         return tuple(parse_requirements(requirements))
 
     # noinspection PyAttributeOutsideInit
-    def initialize_options(self):
+    def initialize_options(self) -> None:
         # All options are initialized as None due to ConfigParser
         self.rm = False
         self.path = ".venv"
         self.extras = ""
-        self.get_pip = "https://bootstrap.pypa.io/get-pip.py"
+        self.get_pip = True
         self.location = False
         self.editable = False
         self.env_name = self.distribution.metadata.name
         self.system_site_packages = False
 
     # noinspection PyAttributeOutsideInit
-    def finalize_options(self):
+    def finalize_options(self) -> None:
         if not self.env_name:
             raise TypeError("Virtual environment must have a name")
 
@@ -78,7 +78,7 @@ class VirtualEnvCommand(Command):
 
         self.extras = re.sub(r"\s*\n+\s*", ",", self.extras.strip())
 
-    def run(self):
+    def run(self) -> None:
         if self.rm:
             if path.isdir(self.path):
                 self.announce(f"Removing virtual env: {self.path}", INFO)
@@ -95,7 +95,7 @@ class VirtualEnvCommand(Command):
                 raise EnvironmentError("There is no virtual environment")
             return
 
-        self.announce(f"Creating virtual env: {self.path}", INFO)
+        self.announce(f"Creating virtual env at path: {self.path}", INFO)
 
         egg_info_path = path.join(PROJECT_PATH, self.get_finalized_command("egg_info").egg_info)
 
@@ -106,17 +106,15 @@ class VirtualEnvCommand(Command):
         this = self
 
         class SpecializedEnvBuilder(ExtendedEnvBuilder):
-            def announce(self, msg):
+            def announce(self, msg: str) -> None:
                 this.announce(msg, INFO)
 
         SpecializedEnvBuilder(
             self.distribution.metadata.name,
             self.env_name,
             PROJECT_PATH,
-            rm_main=not (
-                bool(
-                    [req for req in self._get_req() if req.name == self.distribution.metadata.name]
-                )
+            rm_main=all(
+                req.project_name != self.distribution.metadata.name for req in self._get_req()
             ),
             get_pip=self.get_pip,
             editable=self.editable,

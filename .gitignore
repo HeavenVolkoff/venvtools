@@ -203,5 +203,6 @@ $RECYCLE.BIN/
 ### Project ###
 .idea/**/*
 !.idea/MypyConfig.xml
+.vscode/**/*
 
 # End of https://www.gitignore.io/api/macos,linux,python,windows

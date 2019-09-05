@@ -1,24 +1,41 @@
 # Internal
 import typing as T
-from os import path
+from os import name as os_name, environ
+from sys import stderr, platform
 from venv import EnvBuilder
 from types import SimpleNamespace
+from pathlib import Path
+
+# windows detection, covers cpython and ironpython
+# link: https://github.com/pypa/pip/blob/476606425a08c66b9c9d326994ff5cf3f770926a/src/pip/_internal/utils/compat.py#L239
+WINDOWS = platform.startswith("win") or (platform == "cli" and os_name == "nt")
+GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
+
+
+def _generate_pip_config(config_location: Path, config_values: T.Dict[str, T.Any]) -> None:
+    from configparser import ConfigParser
+
+    config = ConfigParser()
+    config.read_dict(config_values)
+
+    with config_location.open("w", encoding="utf8") as config_file:
+        config.write(config_file)
 
 
 class ExtendedEnvBuilder(EnvBuilder):
     def __init__(
         self,
-        name,
-        env_name,
-        project_path,
-        *args,
+        name: str,
+        env_name: str,
+        project_path: str,
+        *args: T.Any,
         rm_main: bool = True,
         verbose: bool = True,
         get_pip: T.Union[bool, str],
         editable: bool,
         project_extras: str = "",
-        setup_requires: T.List[str] = None,
-        **kwargs,
+        setup_requires: T.Optional[T.List[str]] = None,
+        **kwargs: T.Any,
     ):
         super().__init__(
             *args,
@@ -30,22 +47,20 @@ class ExtendedEnvBuilder(EnvBuilder):
         )
 
         self.name = name
-        self.rm_main = rm_main or not editable
-        self.get_pip = get_pip
+        self.rm_main = rm_main and not editable
+        self.get_pip = get_pip if isinstance(get_pip, str) else GET_PIP_URL if get_pip else ""
         self.verbose = verbose
         self.editable = editable
         self.project_path = project_path
         self.project_extras = project_extras
         self.setup_requires = setup_requires
 
-    def announce(self, msg):
-        from sys import stderr
-
+    def announce(self, msg: str) -> None:
         stderr.write(msg)
         stderr.flush()
 
-    def ensure_directories(self, *args, **kwargs):
-        context = super().ensure_directories(*args, **kwargs)
+    def ensure_directories(self, env_dir: str) -> SimpleNamespace:
+        context: SimpleNamespace = super().ensure_directories(env_dir)
         # disable default prompt format
         context.prompt = self.prompt
 
@@ -55,51 +70,51 @@ class ExtendedEnvBuilder(EnvBuilder):
         self,
         context: SimpleNamespace,
         name: str,
-        *args,
-        url: str = None,
-        cwd: str = None,
-        message: str = None,
-    ):
-        from sys import stderr
-        from contextlib import ExitStack
+        *args: T.Any,
+        url: T.Optional[str] = None,
+        cwd: T.Optional[str] = None,
+        message: T.Optional[str] = None,
+    ) -> None:
         from subprocess import PIPE, Popen
 
-        with ExitStack() as stack:
-            data = None
-            proc_kwargs = {"cwd": cwd or context.bin_path, "args": [context.env_exe, "-q"]}
-            if url:
-                if path.isfile(url):
-                    proc_kwargs["args"].extend([url, *args])
-                else:
-                    from urllib.request import urlopen
+        data = b""
+        proc_kwargs: T.Dict[str, T.Any] = {
+            "cwd": cwd or context.bin_path,
+            "args": [context.env_exe, "-I", "-q"],
+        }
 
-                    self.announce("Downloading {}".format(url))
-
-                    data = b""
-                    with urlopen(url) as resp:
-                        length = -1
-                        while len(data) > length:
-                            length = len(data)
-                            if length > 12 * 1024 * 1024:
-                                raise RuntimeError("Download exceed 12Mb limit")
-
-                            data += resp.read(4096)
-                            if self.verbose:
-                                stderr.write(".")
-                                stderr.flush()
-                    if self.verbose:
-                        stderr.write("\n")
-                        stderr.flush()
-
-                    proc_kwargs["args"].extend(["-", *args])
-                    proc_kwargs["stdin"] = PIPE
+        if url:
+            if Path(url).is_file():
+                proc_kwargs["args"].extend([url, *args])
             else:
-                proc_kwargs["args"].extend(["-m", name, *args])
+                from urllib.request import urlopen
 
-            self.announce("Executing {}".format(message or name))
+                self.announce("Downloading {}".format(url))
 
-            proc = stack.enter_context(Popen(**proc_kwargs))
-            proc.communicate(input=data, timeout=None)
+                with urlopen(url) as resp:
+                    length = -1
+                    while len(data) > length:
+                        length = len(data)
+                        if length > 12 * 1024 * 1024:
+                            raise RuntimeError("Download exceed 12Mb limit")
+
+                        data += resp.read(4096)
+                        if self.verbose:
+                            stderr.write(".")
+                            stderr.flush()
+                if self.verbose:
+                    stderr.write("\n")
+                    stderr.flush()
+
+                proc_kwargs["args"].extend(["-", *args])
+                proc_kwargs["stdin"] = PIPE
+        else:
+            proc_kwargs["args"].extend(["-m", name, *args])
+
+        self.announce("Executing {}".format(message or name))
+
+        with Popen(**proc_kwargs, env=environ) as proc:
+            proc.communicate(input=data if data else None, timeout=None)
             if proc.poll() != 0:
                 raise RuntimeError(
                     "Failed to execute {} with arguments {}".format(url or name, args)
@@ -107,7 +122,7 @@ class ExtendedEnvBuilder(EnvBuilder):
 
         self.announce("Done")
 
-    def post_setup(self, context: SimpleNamespace):
+    def post_setup(self, context: SimpleNamespace) -> None:
         """
         Set up any packages which need to be pre-installed into the
         environment being created.
@@ -115,37 +130,42 @@ class ExtendedEnvBuilder(EnvBuilder):
         :param context: The information for the environment creation request
                         being processed.
         """
-        from os import environ
-
         environ["VIRTUAL_ENV"] = context.env_dir
+
+        # Generate config before using pip so it can load it
+        _generate_pip_config(
+            Path(context.env_dir) / ("pip.ini" if WINDOWS else "pip.conf"),
+            {
+                "global": {"require-virtualenv": True},
+                "install": {"user": False, "prefix": context.env_dir},
+            },
+        )
+
+        pip_install_args = ["--upgrade", "--no-cache"]
+
+        if not self.verbose:
+            pip_install_args.extend(("--quiet", "--progress-bar", "off"))
+
+        self.announce("Checking if pip is already installed...")
 
         try:
             # Check if pip is already installed
             self.run_script(context, "pip", "-qqq", "check")
         except RuntimeError:
-            self.run_script(
-                context,
-                "get-pip",
-                "--no-cache",
-                "--no-user",
-                "-UI",
-                "--prefix",
-                context.env_dir,
-                *(() if self.verbose else ("-q",)),
-                url=self.get_pip,
-            )
+            if self.get_pip:
+                self.run_script(
+                    context,
+                    "get-pip",
+                    *pip_install_args,
+                    url=self.get_pip,
+                    message="get-pip.py to install pip",
+                )
+            else:
+                self.announce("pip won't be installed")
+        else:
+            self.announce("pip installed")
 
-        pip_install = [
-            "pip",
-            "install",
-            "--no-cache",
-            "--no-user",
-            "-UI",
-            "--prefix",
-            context.env_dir,
-        ]
-        if not self.verbose:
-            pip_install.extend(("--progress-bar", "off", "-q"))
+        pip_install = ["pip", "install", *pip_install_args]
 
         if self.setup_requires:
             self.run_script(
@@ -157,7 +177,7 @@ class ExtendedEnvBuilder(EnvBuilder):
             )
 
         if self.editable:
-            pip_install.extend(("-e",))
+            pip_install.append("-e")
 
         self.run_script(
             context,
