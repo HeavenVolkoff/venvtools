@@ -4,10 +4,10 @@ import shutil
 import typing as T
 from os import path
 from sys import argv
-from distutils.log import INFO, WARN, DEBUG, _global_log
+from distutils.log import INFO, WARN, DEBUG, log
 
 # External
-from setuptools import Command
+from setuptools import Command  # type: ignore
 from pkg_resources import Requirement, parse_requirements
 
 # Project
@@ -41,7 +41,7 @@ class VirtualEnvCommand(Command):
         ("rm", None, "Remove virtual environment."),
         ("editable", None, "Install package to venv as editable."),
         ("location", "l", "Retrieve virtual environment location."),
-        ("old-resolver", None, "Force pip to use it's old resolver."),
+        ("old-resolver", None, "Force pip to use its old resolver."),
     ]
 
     def _get_req(self) -> T.Tuple[Requirement, ...]:
@@ -64,6 +64,7 @@ class VirtualEnvCommand(Command):
         self.location = False
         self.editable = False
         self.env_name = self.distribution.metadata.name
+        self.old_resolver = False
         self.system_site_packages = False
 
     # noinspection PyAttributeOutsideInit
@@ -119,8 +120,9 @@ class VirtualEnvCommand(Command):
             ),
             get_pip=self.get_pip,
             editable=self.editable,
-            verbose=bool(_global_log.threshold <= DEBUG),
+            verbose=bool(getattr(getattr(log, "__self__", {}), "threshold", INFO) <= DEBUG),
             project_extras=self.extras,
             setup_requires=self.distribution.setup_requires,
+            use_old_resolver=bool(self.old_resolver),
             system_site_packages=bool(self.system_site_packages),
         ).create(self.path)

@@ -1,10 +1,18 @@
 # Internal
+import sys
 import typing as T
-from os import name as os_name, environ
+from os import PathLike, name as os_name, environ
 from sys import stderr, platform
 from venv import EnvBuilder
 from types import SimpleNamespace
 from pathlib import Path
+
+if sys.version_info < (3, 8):
+    # External
+    import typing_extensions as TypedDict  # type: ignore
+else:
+    # Internal
+    from typing import TypedDict
 
 # windows detection, covers cpython and ironpython
 # link: https://github.com/pypa/pip/blob/476606425a08c66b9c9d326994ff5cf3f770926a/src/pip/_internal/utils/compat.py#L239
@@ -12,7 +20,14 @@ WINDOWS = platform.startswith("win") or (platform == "cli" and os_name == "nt")
 GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 
 
+class PopenArgs(TypedDict):
+    cwd: str
+    args: T.List[str]
+    stdin: T.Optional[int]
+
+
 def _generate_pip_config(config_location: Path, config_values: T.Dict[str, T.Any]) -> None:
+    # Internal
     from configparser import ConfigParser
 
     config = ConfigParser()
@@ -28,22 +43,22 @@ class ExtendedEnvBuilder(EnvBuilder):
         name: str,
         env_name: str,
         project_path: str,
-        *args: T.Any,
+        *,
         rm_main: bool = True,
         verbose: bool = True,
         get_pip: T.Union[bool, str],
         editable: bool,
         project_extras: str = "",
         setup_requires: T.Optional[T.List[str]] = None,
-        **kwargs: T.Any,
+        use_old_resolver: bool = False,
+        system_site_packages: bool = False,
     ):
         super().__init__(
-            *args,
+            system_site_packages,
             clear=False,
             prompt="[venv: {}]\n".format(env_name),
             symlinks=True,
             with_pip=False,
-            **kwargs,
         )
 
         self.name = name
@@ -54,12 +69,15 @@ class ExtendedEnvBuilder(EnvBuilder):
         self.project_path = project_path
         self.project_extras = project_extras
         self.setup_requires = setup_requires
+        self.use_old_resolver = use_old_resolver
 
     def announce(self, msg: str) -> None:
         stderr.write(msg)
         stderr.flush()
 
-    def ensure_directories(self, env_dir: str) -> SimpleNamespace:
+    def ensure_directories(
+        self, env_dir: T.Union[str, bytes, "PathLike[str]", "PathLike[bytes]"]
+    ) -> SimpleNamespace:
         context: SimpleNamespace = super().ensure_directories(env_dir)
         # disable default prompt format
         context.prompt = self.prompt
@@ -75,18 +93,21 @@ class ExtendedEnvBuilder(EnvBuilder):
         cwd: T.Optional[str] = None,
         message: T.Optional[str] = None,
     ) -> None:
+        # Internal
         from subprocess import PIPE, Popen
 
         data = b""
-        proc_kwargs: T.Dict[str, T.Any] = {
+        proc_kwargs: PopenArgs = {
             "cwd": cwd or context.bin_path,
             "args": [context.env_exe, "-I", "-q"],
+            "stdin": None,
         }
 
         if url:
             if Path(url).is_file():
                 proc_kwargs["args"].extend([url, *args])
             else:
+                # Internal
                 from urllib.request import urlopen
 
                 self.announce("Downloading {}".format(url))
@@ -166,6 +187,9 @@ class ExtendedEnvBuilder(EnvBuilder):
             self.announce("pip installed")
 
         pip_install = ["pip", "install", *pip_install_args]
+
+        if self.use_old_resolver:
+            pip_install.append("--use-deprecated=legacy-resolver")
 
         if self.setup_requires:
             self.run_script(

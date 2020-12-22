@@ -41,6 +41,7 @@ or (if your `setup.py` is executable)
 --rm                    Remove virtual environment.
 --editable              Install package to venv as editable.
 --location (-l)         Retrieve virtual environment location.
+--old-resolver          Force pip to use its old resolver.
 ```
 
 ### License
