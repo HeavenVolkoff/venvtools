@@ -9,7 +9,7 @@ from pathlib import Path
 
 if sys.version_info < (3, 8):
     # External
-    import typing_extensions as TypedDict  # type: ignore
+    from typing_extensions import TypedDict  # type: ignore
 else:
     # Internal
     from typing import TypedDict
