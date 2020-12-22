@@ -21,6 +21,7 @@ jobs:
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        TWINE_NON_INTERACTIVE: true
       run: |
-        ./setup.py bdist_wheel --universal
+        ./setup.py bdist_wheel
         twine upload dist/*
