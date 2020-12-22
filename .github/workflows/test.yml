@@ -21,6 +21,7 @@ jobs:
         pip install -qe ".[tests]"
     - name: Test
       run: |
+        set -xeuo pipefail
         catchsegv python -m unittest discover -s tests
         ./setup.py venv --help
         ./setup.py --verbose venv
