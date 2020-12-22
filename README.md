@@ -1,13 +1,16 @@
-## venvtools
+# venvtools
+
 A simple setuptools command to help with virtualenv
 
 ### Motivation
+
 The objective of this utility is to provide means for easy creation of a virtual
 environment for local packages using python's standard venv module and to integrate
 with setuptools distribution model for seamless resolution and installation of
 dependencies.
 
 ### How to use
+
 Inside your package root folder execute the following to create the venv and install
 your package dependencies inside it:
 ```shell
@@ -41,7 +44,9 @@ or (if your `setup.py` is executable)
 ```
 
 ### License
+
 See [LICENSE](./LICENSE)
 
 ### COPYRIGHT
-    Copyright (c) 2018 Vítor Augusto da Silva Vasconcellos. All rights reserved.
+
+    Copyright (c) 2018-2020 Vítor Augusto da Silva Vasconcellos. All rights reserved.

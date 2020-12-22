@@ -41,6 +41,7 @@ class VirtualEnvCommand(Command):
         ("rm", None, "Remove virtual environment."),
         ("editable", None, "Install package to venv as editable."),
         ("location", "l", "Retrieve virtual environment location."),
+        ("old-resolver", None, "Force pip to use it's old resolver."),
     ]
 
     def _get_req(self) -> T.Tuple[Requirement, ...]:

@@ -9,7 +9,7 @@ import sys
 if sys.version_info <= (3, 3):
     raise RuntimeError("Only Python >= 3.4 supported")
 
-from os import path, chdir, scandir
+from os import path, chdir
 from shlex import quote
 from distutils.errors import DistutilsOptionError
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
         )
 
     try:
-        setup(packages=find_namespace_packages("src"), package_dir={"": "src"})
+        setup()
     except DistutilsOptionError:
         raise RuntimeError(
             "Perhaps your setuptools package is too old. To update it run:\n"
