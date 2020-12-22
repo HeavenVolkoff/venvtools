@@ -22,9 +22,10 @@ jobs:
     - name: Test
       run: |
         catchsegv python -m unittest discover -s tests
-        ./setup venv --help
-        ./setup --verbose venv
+        ./setup.py venv --help
+        ./setup.py --verbose venv
         . .venv/bin/activate
         [ "$(realpath -s "$(which python)" --relative-to "$(pwd)")" == ".venv/bin/python" ]
         python --version
-        ./setup venv --rm
+        deactivate
+        ./setup.py venv --rm
