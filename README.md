@@ -2,6 +2,10 @@
 
 A simple setuptools command to help with virtualenv
 
+# DEPRECATED
+
+Use either [poetry](https://github.com/python-poetry/poetry) or [pipx](https://github.com/pypa/pipx) according to your use case.
+
 ### Motivation
 
 The objective of this utility is to provide means for easy creation of a virtual
@@ -50,4 +54,4 @@ See [LICENSE](./LICENSE)
 
 ### COPYRIGHT
 
-    Copyright (c) 2018-2020 Vítor Augusto da Silva Vasconcellos. All rights reserved.
+    Copyright (c) 2018-2023 Vítor Vasconcellos. All rights reserved.
